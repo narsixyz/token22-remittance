@@ -72,8 +72,29 @@ async fn create_v1_mint_fixture() {
     assert_eq!(transfer_fee.older_transfer_fee.maximum_fee, 1_000_000.into());
     assert_eq!(transfer_fee.newer_transfer_fee.transfer_fee_basis_points, 100.into());
     assert_eq!(transfer_fee.newer_transfer_fee.maximum_fee, 1_000_000.into());
+    let current_fee = token22_remittance::token22::calculate_current_fee(
+        &mint_account.data,
+        0,
+        1_000_000,
+    ).unwrap();
+    assert_eq!(current_fee, 10_000);
     println!("V1 mint created successfully");
     println!("mint: {}", mint.pubkey());
     println!("space: {} bytes", mint_space);
+}
+
+
+#[test]
+fn calculate_transfer_fee_from_current_epoch() {
+    use spl_token_2022::extension::transfer_fee::TransferFee;
+
+    let fee = TransferFee {
+        epoch: 0.into(),
+        maximum_fee: 1_000_000.into(),
+        transfer_fee_basis_points: 100.into(),
+    };
+
+    assert_eq!(fee.calculate_fee(1_000_000), Some(10_000));
+    assert_eq!(fee.calculate_fee(100), Some(1));
 }
 

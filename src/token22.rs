@@ -78,3 +78,39 @@ pub fn read_transfer_fee_config(
     let mint = StateWithExtensions::<Mint>::unpack(mint_data)?;
     Ok(*mint.get_extension::<TransferFeeConfig>()?)
 }
+
+pub fn transfer_with_fee(
+    token_program: &Pubkey,
+    source: &Pubkey,
+    mint: &Pubkey,
+    destination: &Pubkey,
+    authority: &Pubkey,
+    amount: u64,
+    decimals: u8,
+    fee: u64,
+) -> Instruction {
+    spl_token_2022::extension::transfer_fee::instruction::transfer_checked_with_fee(
+        token_program,
+        source,
+        mint,
+        destination,
+        authority,
+        &[],
+        amount,
+        decimals,
+        fee,
+    )
+    .expect("failed to build transfer_checked_with_fee instruction")
+}
+
+pub fn calculate_current_fee(
+    mint_data: &[u8],
+    current_epoch: u64,
+    amount: u64,
+) -> Result<u64, solana_program_error::ProgramError> {
+    let transfer_fee = read_transfer_fee_config(mint_data)?;
+
+    transfer_fee
+        .calculate_epoch_fee(current_epoch, amount)
+        .ok_or(solana_program_error::ProgramError::InvalidInstructionData)
+}
