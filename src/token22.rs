@@ -1,8 +1,11 @@
 use spl_token_2022::{
     extension::{
+        confidential_transfer::{ConfidentialTransferAccount, ConfidentialTransferMint},
+        confidential_transfer_fee::ConfidentialTransferFeeAmount,
         default_account_state::instruction::initialize_default_account_state,
         metadata_pointer::instruction::initialize as initialize_metadata_pointer,
-        transfer_fee::instruction::initialize_transfer_fee_config, ExtensionType,
+        transfer_fee::instruction::initialize_transfer_fee_config,
+        ExtensionType,
     },
     instruction::initialize_mint_close_authority,
     state::{AccountState, Mint},
@@ -153,6 +156,7 @@ pub fn v2_token_account_space() -> usize {
         ExtensionType::get_required_init_account_extensions(&v2_extensions());
 
     account_extensions.push(ExtensionType::ConfidentialTransferAccount);
+    account_extensions.push(ExtensionType::ConfidentialTransferFeeAmount);
 
     ExtensionType::try_calculate_account_len::<spl_token_2022::state::Account>(&account_extensions)
         .expect("failed to calculate V2 token account size")
@@ -191,6 +195,7 @@ pub fn v2_initialization_instructions(
     mint: &Pubkey,
     authority: &Pubkey,
     permanent_delegate: &Pubkey,
+    confidential_fee_elgamal_pubkey: Option<&solana_zk_sdk::encryption::elgamal::ElGamalPubkey>,
 ) -> Vec<Instruction> {
     let mut instructions = v1_initialization_instructions(token_program, mint, authority);
 
@@ -214,15 +219,12 @@ pub fn v2_initialization_instructions(
         .expect("confidential transfer mint initialization failed"),
     );
 
-    let confidential_fee_keypair =
-        solana_zk_sdk::encryption::elgamal::ElGamalKeypair::new_rand();
-
     instructions.push(
         spl_token_2022::extension::confidential_transfer_fee::instruction::initialize_confidential_transfer_fee_config(
             token_program,
             mint,
             Some(*authority),
-            &(*confidential_fee_keypair.pubkey()).into(),
+            &(*confidential_fee_elgamal_pubkey.expect("confidential fee ElGamal pubkey required for V2")).into(),
         )
         .expect("confidential transfer fee initialization failed"),
     );
@@ -237,4 +239,31 @@ pub fn initialize_v2_token_account(
     owner: &Pubkey,
 ) -> Instruction {
     initialize_token_account(token_program, account, mint, owner)
+}
+
+pub fn read_confidential_transfer_mint(
+    mint_data: &[u8],
+) -> Result<ConfidentialTransferMint, solana_program_error::ProgramError> {
+    use spl_token_2022::extension::{BaseStateWithExtensions, StateWithExtensions};
+
+    let mint = StateWithExtensions::<Mint>::unpack(mint_data)?;
+    Ok(*mint.get_extension::<ConfidentialTransferMint>()?)
+}
+
+pub fn read_confidential_transfer_account(
+    account_data: &[u8],
+) -> Result<ConfidentialTransferAccount, solana_program_error::ProgramError> {
+    use spl_token_2022::extension::{BaseStateWithExtensions, StateWithExtensions};
+
+    let account = StateWithExtensions::<spl_token_2022::state::Account>::unpack(account_data)?;
+    Ok(*account.get_extension::<ConfidentialTransferAccount>()?)
+}
+
+pub fn read_confidential_transfer_fee_amount(
+    account_data: &[u8],
+) -> Result<ConfidentialTransferFeeAmount, solana_program_error::ProgramError> {
+    use spl_token_2022::extension::{BaseStateWithExtensions, StateWithExtensions};
+
+    let account = StateWithExtensions::<spl_token_2022::state::Account>::unpack(account_data)?;
+    Ok(*account.get_extension::<ConfidentialTransferFeeAmount>()?)
 }

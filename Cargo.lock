@@ -8256,6 +8256,8 @@ dependencies = [
  "spl-associated-token-account",
  "spl-token",
  "spl-token-2022",
+ "spl-token-confidential-transfer-proof-extraction 0.4.1",
+ "spl-token-confidential-transfer-proof-generation 0.4.1",
  "tokio",
 ]
 
