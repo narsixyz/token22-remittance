@@ -79,6 +79,30 @@ pub fn read_transfer_fee_config(
     Ok(*mint.get_extension::<TransferFeeConfig>()?)
 }
 
+pub fn read_transfer_fee_amount(
+    account_data: &[u8],
+) -> Result<u64, solana_program_error::ProgramError> {
+    use spl_token_2022::extension::{
+        transfer_fee::TransferFeeAmount,
+        BaseStateWithExtensions,
+        StateWithExtensions,
+    };
+
+    let account = StateWithExtensions::<spl_token_2022::state::Account>::unpack(account_data)?;
+    let fee = account.get_extension::<TransferFeeAmount>()?;
+
+    Ok(u64::from(fee.withheld_amount))
+}
+
+pub fn read_token_account(
+    account_data: &[u8],
+) -> Result<spl_token_2022::state::Account, solana_program_error::ProgramError> {
+    use spl_token_2022::extension::StateWithExtensions;
+
+    let account = StateWithExtensions::<spl_token_2022::state::Account>::unpack(account_data)?;
+    Ok(account.base)
+}
+
 pub fn transfer_with_fee(
     token_program: &Pubkey,
     source: &Pubkey,
@@ -147,14 +171,23 @@ pub fn thaw_token_account(
 }
 
 pub fn token_account_space() -> usize {
-    let required_extensions = ExtensionType::get_required_init_account_extensions(
-        &v1_extensions(),
-    );
+    let required_extensions =
+        ExtensionType::get_required_init_account_extensions(&v1_extensions());
 
     ExtensionType::try_calculate_account_len::<spl_token_2022::state::Account>(
         &required_extensions,
     )
     .expect("failed to calculate token account size")
+}
+
+pub fn v2_token_account_space() -> usize {
+    let required_extensions =
+        ExtensionType::get_required_init_account_extensions(&v2_extensions());
+
+    ExtensionType::try_calculate_account_len::<spl_token_2022::state::Account>(
+        &required_extensions,
+    )
+    .expect("failed to calculate V2 token account size")
 }
 
 pub fn mint_tokens(
@@ -173,4 +206,55 @@ pub fn mint_tokens(
         amount,
     )
     .expect("failed to build mint_to instruction")
+}
+
+pub fn v2_extensions() -> Vec<ExtensionType> {
+    vec![
+        ExtensionType::TransferFeeConfig,
+        ExtensionType::MetadataPointer,
+        ExtensionType::DefaultAccountState,
+        ExtensionType::MintCloseAuthority,
+        ExtensionType::PermanentDelegate,
+        ExtensionType::ConfidentialTransferMint,
+    ]
+}
+
+pub fn v2_mint_space() -> usize {
+    ExtensionType::try_calculate_account_len::<Mint>(&v2_extensions())
+        .expect("failed to calculate V2 mint size")
+}
+
+pub fn v2_initialization_instructions(
+    token_program: &Pubkey,
+    mint: &Pubkey,
+    authority: &Pubkey,
+    permanent_delegate: &Pubkey,
+) -> Vec<Instruction> {
+    let mut instructions = v1_initialization_instructions(
+        token_program,
+        mint,
+        authority,
+    );
+
+    instructions.push(
+        spl_token_2022::instruction::initialize_permanent_delegate(
+            token_program,
+            mint,
+            permanent_delegate,
+        )
+        .expect("permanent delegate initialization failed"),
+    );
+
+    instructions.push(
+        spl_token_2022::extension::confidential_transfer::instruction::initialize_mint(
+            token_program,
+            mint,
+            Some(*authority),
+            false,
+            None,
+        )
+        .expect("confidential transfer mint initialization failed"),
+    );
+
+    instructions
 }
