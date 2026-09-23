@@ -8242,6 +8242,7 @@ checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
 name = "token22-remittance"
 version = "0.1.0"
 dependencies = [
+ "solana-clock 2.2.3",
  "solana-instruction 2.3.3",
  "solana-keypair",
  "solana-program",

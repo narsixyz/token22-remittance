@@ -13,6 +13,7 @@ use token22_remittance::token22::{
 async fn create_v1_mint_fixture() {
     let test = ProgramTest::default();
     let (banks_client, payer, recent_blockhash) = test.start().await;
+    let current_epoch = banks_client.get_sysvar::<Clock>().await.unwrap().epoch;
 
     let mint = Keypair::new();
     let mint_authority = Keypair::new();
@@ -75,7 +76,7 @@ async fn create_v1_mint_fixture() {
     assert_eq!(transfer_fee.newer_transfer_fee.maximum_fee, 1_000_000.into());
     let current_fee = token22_remittance::token22::calculate_current_fee(
         &mint_account.data,
-        0,
+        current_epoch,
         1_000_000,
     ).unwrap();
     assert_eq!(current_fee, 10_000);
