@@ -17,6 +17,7 @@ spl-associated-token-account = "8.0.0"
 spl-token = "8.0.0"
 solana-program-error = "2.2.2"
 solana-clock = "2.2.3"
+solana-zk-sdk = "2.3.13"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

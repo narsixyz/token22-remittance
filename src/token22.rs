@@ -2,8 +2,7 @@ use spl_token_2022::{
     extension::{
         default_account_state::instruction::initialize_default_account_state,
         metadata_pointer::instruction::initialize as initialize_metadata_pointer,
-        transfer_fee::instruction::initialize_transfer_fee_config,
-        ExtensionType,
+        transfer_fee::instruction::initialize_transfer_fee_config, ExtensionType,
     },
     instruction::initialize_mint_close_authority,
     state::{AccountState, Mint},
@@ -41,38 +40,23 @@ pub fn v1_initialization_instructions(
             1_000_000,
         )
         .expect("transfer fee initialization failed"),
-
-        initialize_metadata_pointer(
-            token_program,
-            mint,
-            Some(*authority),
-            Some(*mint),
-        )
-        .expect("metadata pointer initialization failed"),
-
-        initialize_default_account_state(
-            token_program,
-            mint,
-            &AccountState::Frozen,
-        )
-        .expect("default account state initialization failed"),
-
-        initialize_mint_close_authority(
-            token_program,
-            mint,
-            Some(authority),
-        )
-        .expect("mint close authority initialization failed"),
+        initialize_metadata_pointer(token_program, mint, Some(*authority), Some(*mint))
+            .expect("metadata pointer initialization failed"),
+        initialize_default_account_state(token_program, mint, &AccountState::Frozen)
+            .expect("default account state initialization failed"),
+        initialize_mint_close_authority(token_program, mint, Some(authority))
+            .expect("mint close authority initialization failed"),
     ]
 }
 
 pub fn read_transfer_fee_config(
     mint_data: &[u8],
-) -> Result<spl_token_2022::extension::transfer_fee::TransferFeeConfig, solana_program_error::ProgramError> {
+) -> Result<
+    spl_token_2022::extension::transfer_fee::TransferFeeConfig,
+    solana_program_error::ProgramError,
+> {
     use spl_token_2022::extension::{
-        transfer_fee::TransferFeeConfig,
-        BaseStateWithExtensions,
-        StateWithExtensions,
+        transfer_fee::TransferFeeConfig, BaseStateWithExtensions, StateWithExtensions,
     };
 
     let mint = StateWithExtensions::<Mint>::unpack(mint_data)?;
@@ -83,9 +67,7 @@ pub fn read_transfer_fee_amount(
     account_data: &[u8],
 ) -> Result<u64, solana_program_error::ProgramError> {
     use spl_token_2022::extension::{
-        transfer_fee::TransferFeeAmount,
-        BaseStateWithExtensions,
-        StateWithExtensions,
+        transfer_fee::TransferFeeAmount, BaseStateWithExtensions, StateWithExtensions,
     };
 
     let account = StateWithExtensions::<spl_token_2022::state::Account>::unpack(account_data)?;
@@ -145,13 +127,8 @@ pub fn initialize_token_account(
     mint: &Pubkey,
     owner: &Pubkey,
 ) -> Instruction {
-    spl_token_2022::instruction::initialize_account3(
-        token_program,
-        account,
-        mint,
-        owner,
-    )
-    .expect("failed to build initialize_account3 instruction")
+    spl_token_2022::instruction::initialize_account3(token_program, account, mint, owner)
+        .expect("failed to build initialize_account3 instruction")
 }
 
 pub fn thaw_token_account(
@@ -160,24 +137,15 @@ pub fn thaw_token_account(
     mint: &Pubkey,
     freeze_authority: &Pubkey,
 ) -> Instruction {
-    spl_token_2022::instruction::thaw_account(
-        token_program,
-        account,
-        mint,
-        freeze_authority,
-        &[],
-    )
-    .expect("failed to build thaw_account instruction")
+    spl_token_2022::instruction::thaw_account(token_program, account, mint, freeze_authority, &[])
+        .expect("failed to build thaw_account instruction")
 }
 
 pub fn token_account_space() -> usize {
-    let required_extensions =
-        ExtensionType::get_required_init_account_extensions(&v1_extensions());
+    let required_extensions = ExtensionType::get_required_init_account_extensions(&v1_extensions());
 
-    ExtensionType::try_calculate_account_len::<spl_token_2022::state::Account>(
-        &required_extensions,
-    )
-    .expect("failed to calculate token account size")
+    ExtensionType::try_calculate_account_len::<spl_token_2022::state::Account>(&required_extensions)
+        .expect("failed to calculate token account size")
 }
 
 pub fn v2_token_account_space() -> usize {
@@ -186,10 +154,8 @@ pub fn v2_token_account_space() -> usize {
 
     account_extensions.push(ExtensionType::ConfidentialTransferAccount);
 
-    ExtensionType::try_calculate_account_len::<spl_token_2022::state::Account>(
-        &account_extensions,
-    )
-    .expect("failed to calculate V2 token account size")
+    ExtensionType::try_calculate_account_len::<spl_token_2022::state::Account>(&account_extensions)
+        .expect("failed to calculate V2 token account size")
 }
 
 pub fn mint_tokens(
@@ -199,15 +165,8 @@ pub fn mint_tokens(
     mint_authority: &Pubkey,
     amount: u64,
 ) -> Instruction {
-    spl_token_2022::instruction::mint_to(
-        token_program,
-        mint,
-        account,
-        mint_authority,
-        &[],
-        amount,
-    )
-    .expect("failed to build mint_to instruction")
+    spl_token_2022::instruction::mint_to(token_program, mint, account, mint_authority, &[], amount)
+        .expect("failed to build mint_to instruction")
 }
 
 pub fn v2_extensions() -> Vec<ExtensionType> {
@@ -218,6 +177,7 @@ pub fn v2_extensions() -> Vec<ExtensionType> {
         ExtensionType::MintCloseAuthority,
         ExtensionType::PermanentDelegate,
         ExtensionType::ConfidentialTransferMint,
+        ExtensionType::ConfidentialTransferFeeConfig,
     ]
 }
 
@@ -232,11 +192,7 @@ pub fn v2_initialization_instructions(
     authority: &Pubkey,
     permanent_delegate: &Pubkey,
 ) -> Vec<Instruction> {
-    let mut instructions = v1_initialization_instructions(
-        token_program,
-        mint,
-        authority,
-    );
+    let mut instructions = v1_initialization_instructions(token_program, mint, authority);
 
     instructions.push(
         spl_token_2022::instruction::initialize_permanent_delegate(
@@ -256,6 +212,19 @@ pub fn v2_initialization_instructions(
             None,
         )
         .expect("confidential transfer mint initialization failed"),
+    );
+
+    let confidential_fee_keypair =
+        solana_zk_sdk::encryption::elgamal::ElGamalKeypair::new_rand();
+
+    instructions.push(
+        spl_token_2022::extension::confidential_transfer_fee::instruction::initialize_confidential_transfer_fee_config(
+            token_program,
+            mint,
+            Some(*authority),
+            &(*confidential_fee_keypair.pubkey()).into(),
+        )
+        .expect("confidential transfer fee initialization failed"),
     );
 
     instructions
