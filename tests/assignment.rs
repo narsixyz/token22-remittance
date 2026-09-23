@@ -11,7 +11,7 @@ use token22_remittance::token22::{
 #[tokio::test]
 async fn create_v1_mint_fixture() {
     let test = ProgramTest::default();
-    let (mut banks_client, payer, recent_blockhash) = test.start().await;
+    let (banks_client, payer, recent_blockhash) = test.start().await;
 
     let mint = Keypair::new();
     let mint_authority = Keypair::new();
@@ -66,7 +66,14 @@ async fn create_v1_mint_fixture() {
         .await
         .unwrap();
 
+    let mint_account = banks_client.get_account(mint.pubkey()).await.unwrap().unwrap();
+    let transfer_fee = token22_remittance::token22::read_transfer_fee_config(&mint_account.data).unwrap();
+    assert_eq!(transfer_fee.older_transfer_fee.transfer_fee_basis_points, 100.into());
+    assert_eq!(transfer_fee.older_transfer_fee.maximum_fee, 1_000_000.into());
+    assert_eq!(transfer_fee.newer_transfer_fee.transfer_fee_basis_points, 100.into());
+    assert_eq!(transfer_fee.newer_transfer_fee.maximum_fee, 1_000_000.into());
     println!("V1 mint created successfully");
     println!("mint: {}", mint.pubkey());
     println!("space: {} bytes", mint_space);
 }
+
