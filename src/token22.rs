@@ -150,3 +150,21 @@ pub fn token_account_space() -> usize {
     ExtensionType::try_calculate_account_len::<spl_token_2022::state::Account>(&[])
         .expect("failed to calculate token account size")
 }
+
+pub fn mint_tokens(
+    token_program: &Pubkey,
+    mint: &Pubkey,
+    account: &Pubkey,
+    mint_authority: &Pubkey,
+    amount: u64,
+) -> Instruction {
+    spl_token_2022::instruction::mint_to(
+        token_program,
+        mint,
+        account,
+        mint_authority,
+        &[],
+        amount,
+    )
+    .expect("failed to build mint_to instruction")
+}
