@@ -114,3 +114,34 @@ pub fn calculate_current_fee(
         .calculate_epoch_fee(current_epoch, amount)
         .ok_or(solana_program_error::ProgramError::InvalidInstructionData)
 }
+
+pub fn initialize_token_account(
+    token_program: &Pubkey,
+    account: &Pubkey,
+    mint: &Pubkey,
+    owner: &Pubkey,
+) -> Instruction {
+    spl_token_2022::instruction::initialize_account3(
+        token_program,
+        account,
+        mint,
+        owner,
+    )
+    .expect("failed to build initialize_account3 instruction")
+}
+
+pub fn thaw_token_account(
+    token_program: &Pubkey,
+    account: &Pubkey,
+    mint: &Pubkey,
+    freeze_authority: &Pubkey,
+) -> Instruction {
+    spl_token_2022::instruction::thaw_account(
+        token_program,
+        account,
+        mint,
+        freeze_authority,
+        &[],
+    )
+    .expect("failed to build thaw_account instruction")
+}
