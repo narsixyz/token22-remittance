@@ -181,11 +181,13 @@ pub fn token_account_space() -> usize {
 }
 
 pub fn v2_token_account_space() -> usize {
-    let required_extensions =
+    let mut account_extensions =
         ExtensionType::get_required_init_account_extensions(&v2_extensions());
 
+    account_extensions.push(ExtensionType::ConfidentialTransferAccount);
+
     ExtensionType::try_calculate_account_len::<spl_token_2022::state::Account>(
-        &required_extensions,
+        &account_extensions,
     )
     .expect("failed to calculate V2 token account size")
 }
@@ -257,4 +259,13 @@ pub fn v2_initialization_instructions(
     );
 
     instructions
+}
+
+pub fn initialize_v2_token_account(
+    token_program: &Pubkey,
+    account: &Pubkey,
+    mint: &Pubkey,
+    owner: &Pubkey,
+) -> Instruction {
+    initialize_token_account(token_program, account, mint, owner)
 }
