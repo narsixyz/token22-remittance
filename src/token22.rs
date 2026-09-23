@@ -145,3 +145,8 @@ pub fn thaw_token_account(
     )
     .expect("failed to build thaw_account instruction")
 }
+
+pub fn token_account_space() -> usize {
+    ExtensionType::try_calculate_account_len::<spl_token_2022::state::Account>(&[])
+        .expect("failed to calculate token account size")
+}
