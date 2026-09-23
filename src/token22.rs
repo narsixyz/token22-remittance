@@ -65,3 +65,16 @@ pub fn v1_initialization_instructions(
         .expect("mint close authority initialization failed"),
     ]
 }
+
+pub fn read_transfer_fee_config(
+    mint_data: &[u8],
+) -> Result<spl_token_2022::extension::transfer_fee::TransferFeeConfig, solana_program_error::ProgramError> {
+    use spl_token_2022::extension::{
+        transfer_fee::TransferFeeConfig,
+        BaseStateWithExtensions,
+        StateWithExtensions,
+    };
+
+    let mint = StateWithExtensions::<Mint>::unpack(mint_data)?;
+    Ok(*mint.get_extension::<TransferFeeConfig>()?)
+}
