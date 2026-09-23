@@ -1,47 +1,72 @@
 use solana_program_test::ProgramTest;
-use solana_pubkey::Pubkey;
+use solana_signer::Signer;
+use solana_keypair::Keypair;
+use solana_system_interface::instruction as system_instruction;
+use spl_token_2022::instruction::initialize_mint;
 use token22_remittance::token22::{
     v1_initialization_instructions,
     v1_mint_space,
-    v1_extensions,
 };
 
 #[tokio::test]
 async fn create_v1_mint_fixture() {
-    let _test = ProgramTest::default();
+    let test = ProgramTest::default();
+    let (mut banks_client, payer, recent_blockhash) = test.start().await;
+
+    let mint = Keypair::new();
+    let mint_authority = Keypair::new();
+    let freeze_authority = Keypair::new();
+    let close_authority = Keypair::new();
 
     let token_program = spl_token_2022::id();
-    let mint = Pubkey::new_unique();
-    let authority = Pubkey::new_unique();
+    let mint_space = v1_mint_space();
 
-    let extensions = v1_extensions();
-    let space = v1_mint_space();
+    let rent = banks_client
+        .get_rent()
+        .await
+        .unwrap()
+        .minimum_balance(mint_space);
 
-    let instructions =
-        v1_initialization_instructions(&token_program, &mint, &authority);
+    let mut instructions = vec![
+        system_instruction::create_account(
+            &payer.pubkey(),
+            &mint.pubkey(),
+            rent,
+            mint_space as u64,
+            &token_program,
+        ),
+    ];
 
-    assert_eq!(extensions.len(), 4);
-    assert!(space > 82);
-    assert_eq!(instructions.len(), 4);
+    instructions.extend(v1_initialization_instructions(
+        &token_program,
+        &mint.pubkey(),
+        &close_authority.pubkey(),
+    ));
 
-    // Every extension initialization instruction must target Token-2022.
-    assert!(instructions
-        .iter()
-        .all(|ix| ix.program_id == token_program));
+    instructions.push(
+        initialize_mint(
+            &token_program,
+            &mint.pubkey(),
+            &mint_authority.pubkey(),
+            Some(&freeze_authority.pubkey()),
+            6,
+        )
+        .unwrap(),
+    );
 
-    // Every extension initialization instruction must contain instruction data.
-    assert!(instructions.iter().all(|ix| !ix.data.is_empty()));
+    let transaction = solana_transaction::Transaction::new_signed_with_payer(
+        &instructions,
+        Some(&payer.pubkey()),
+        &[&payer, &mint],
+        recent_blockhash,
+    );
 
-    // Required order:
-    // 1. TransferFeeConfig
-    // 2. MetadataPointer -> mint
-    // 3. DefaultAccountState -> Frozen
-    // 4. MintCloseAuthority
-    assert_ne!(instructions[0].data, instructions[1].data);
-    assert_ne!(instructions[1].data, instructions[2].data);
-    assert_ne!(instructions[2].data, instructions[3].data);
+    banks_client
+        .process_transaction(transaction)
+        .await
+        .unwrap();
 
-    println!("V1 initialization instructions: {}", instructions.len());
-    println!("V1 mint space: {} bytes", space);
-    println!("V1 initialization order verified");
+    println!("V1 mint created successfully");
+    println!("mint: {}", mint.pubkey());
+    println!("space: {} bytes", mint_space);
 }
