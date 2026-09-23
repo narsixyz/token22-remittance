@@ -147,8 +147,14 @@ pub fn thaw_token_account(
 }
 
 pub fn token_account_space() -> usize {
-    ExtensionType::try_calculate_account_len::<spl_token_2022::state::Account>(&[])
-        .expect("failed to calculate token account size")
+    let required_extensions = ExtensionType::get_required_init_account_extensions(
+        &v1_extensions(),
+    );
+
+    ExtensionType::try_calculate_account_len::<spl_token_2022::state::Account>(
+        &required_extensions,
+    )
+    .expect("failed to calculate token account size")
 }
 
 pub fn mint_tokens(

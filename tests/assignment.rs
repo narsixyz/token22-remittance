@@ -4,6 +4,8 @@ use solana_signer::Signer;
 use solana_keypair::Keypair;
 use solana_system_interface::instruction as system_instruction;
 use spl_token_2022::instruction::initialize_mint;
+use token22_remittance::token22::initialize_token_account;
+use token22_remittance::token22::thaw_token_account;
 use token22_remittance::token22::{
     v1_initialization_instructions,
     v1_mint_space,
@@ -14,14 +16,26 @@ async fn create_v1_mint_fixture() {
     let test = ProgramTest::default();
     let (banks_client, payer, recent_blockhash) = test.start().await;
     let current_epoch = banks_client.get_sysvar::<Clock>().await.unwrap().epoch;
+    let current_epoch = banks_client.get_sysvar::<Clock>().await.unwrap().epoch;
 
     let mint = Keypair::new();
     let mint_authority = Keypair::new();
     let freeze_authority = Keypair::new();
     let close_authority = Keypair::new();
+    let source_account = Keypair::new();
+    let destination_account = Keypair::new();
+    let source_owner = Keypair::new();
+    let destination_owner = Keypair::new();
 
     let token_program = spl_token_2022::id();
     let mint_space = v1_mint_space();
+    let token_account_space = token22_remittance::token22::token_account_space();
+    let token_account_rent = banks_client
+        .get_rent()
+        .await
+        .unwrap()
+        .minimum_balance(token_account_space);
+
 
     let rent = banks_client
         .get_rent()
@@ -35,6 +49,20 @@ async fn create_v1_mint_fixture() {
             &mint.pubkey(),
             rent,
             mint_space as u64,
+            &token_program,
+        ),
+        system_instruction::create_account(
+            &payer.pubkey(),
+            &source_account.pubkey(),
+            token_account_rent,
+            token_account_space as u64,
+            &token_program,
+        ),
+        system_instruction::create_account(
+            &payer.pubkey(),
+            &destination_account.pubkey(),
+            token_account_rent,
+            token_account_space as u64,
             &token_program,
         ),
     ];
@@ -56,10 +84,38 @@ async fn create_v1_mint_fixture() {
         .unwrap(),
     );
 
+    instructions.push(initialize_token_account(
+        &token_program,
+        &source_account.pubkey(),
+        &mint.pubkey(),
+        &source_owner.pubkey(),
+    ));
+
+    instructions.push(initialize_token_account(
+        &token_program,
+        &destination_account.pubkey(),
+        &mint.pubkey(),
+        &destination_owner.pubkey(),
+    ));
+
+    instructions.push(thaw_token_account(
+        &token_program,
+        &source_account.pubkey(),
+        &mint.pubkey(),
+        &freeze_authority.pubkey(),
+    ));
+
+    instructions.push(thaw_token_account(
+        &token_program,
+        &destination_account.pubkey(),
+        &mint.pubkey(),
+        &freeze_authority.pubkey(),
+    ));
+
     let transaction = solana_transaction::Transaction::new_signed_with_payer(
         &instructions,
         Some(&payer.pubkey()),
-        &[&payer, &mint],
+        &[&payer, &mint, &source_account, &destination_account, &freeze_authority],
         recent_blockhash,
     );
 
